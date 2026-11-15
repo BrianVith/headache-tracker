@@ -61,14 +61,14 @@
       <section id="view-about" class="view" aria-labelledby="about-heading">
         <h2 id="about-heading">About & reminders</h2>
         <div class="card">
-          <p>This app saves entries <strong>only on this phone</strong>. No account or internet is needed after install.</p>
+          <p>This app saves entries <strong>only on this phone</strong>. No account is needed. Headache data stays on-device.</p>
           <p><strong>Daily slots:</strong> Morning (08:00), Midday (13:00), Evening (19:00).</p>
         </div>
         <div class="card">
-          <h3>Notifications (best effort)</h3>
-          <p class="subtle">Background notifications at exact times are not guaranteed for this offline web app. For reliable reminders, set 3 daily alarms in your phone's Clock app to open Headache Tracker.</p>
+          <h3>Daily reminders</h3>
+          <p class="subtle">In the Android app, reminders can be scheduled on this phone at 08:00, 13:00, and 19:00 and open the correct check-in when tapped. In the browser/PWA version, exact background reminders are not guaranteed.</p>
           <p id="notif-status" class="subtle"></p>
-          <button id="btn-notif" class="btn btn-primary" type="button">Enable notifications</button>
+          <button id="btn-notif" class="btn btn-primary" type="button">Enable daily reminders</button>
         </div>
       </section>
     </main>
@@ -84,6 +84,7 @@
       </div>
     </template>
 
+    <script src="./capacitor.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

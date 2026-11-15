@@ -1,0 +1,20 @@
+{
+  "name": "headache-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Simple headache tracker PWA/Android app with on-device storage and local reminders.",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap add android",
+    "cap:open:android": "npx cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/local-notifications": "^6.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  }
+}

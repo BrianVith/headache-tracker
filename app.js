@@ -1,10 +1,11 @@
 (function () {
   const SLOTS = [
-    { key: 'morning', label: 'Morning', time: '08:00' },
-    { key: 'midday', label: 'Midday', time: '13:00' },
-    { key: 'evening', label: 'Evening', time: '19:00' }
+    { key: 'morning', label: 'Morning', time: '08:00', hour: 8, minute: 0, notifId: 1001 },
+    { key: 'midday', label: 'Midday', time: '13:00', hour: 13, minute: 0, notifId: 1002 },
+    { key: 'evening', label: 'Evening', time: '19:00', hour: 19, minute: 0, notifId: 1003 }
   ];
   const STORAGE_KEY = 'headache-tracker-entries-v1';
+  const SCHEDULE_KEY = 'headache-tracker-reminders-scheduled-v1';
 
   const todayLabel = document.getElementById('today-label');
   const slotsEl = document.getElementById('slots');
@@ -21,6 +22,18 @@
   const notifStatus = document.getElementById('notif-status');
 
   let activeSlotKey = null;
+
+  function getCapacitor() {
+    return window.Capacitor || null;
+  }
+  function isNativeApp() {
+    const cap = getCapacitor();
+    return !!(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
+  }
+  function getLocalNotifications() {
+    const cap = getCapacitor();
+    return cap && cap.Plugins ? cap.Plugins.LocalNotifications : null;
+  }
 
   function pad(n) { return String(n).padStart(2, '0'); }
   function toDateKey(d) {
@@ -66,6 +79,49 @@
   function slotLabel(key) {
     const s = SLOTS.find(x => x.key === key);
     return s ? s.label : key;
+  }
+
+  function showTodayView() {
+    document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.getAttribute('data-view') === 'today'));
+    document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-today'));
+  }
+
+  function getRequestedSlot() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      let slot = params.get('slot');
+      if (!slot && window.location.hash) {
+        const h = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+        slot = h.get('slot');
+      }
+      if (!slot) return null;
+      slot = String(slot).toLowerCase();
+      return SLOTS.some(s => s.key === slot) ? slot : null;
+    } catch (_) { return null; }
+  }
+
+  function clearRequestedSlotFromUrl() {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('slot');
+      if (url.hash) {
+        const h = new URLSearchParams(url.hash.replace(/^#/, ''));
+        if (h.has('slot')) {
+          h.delete('slot');
+          url.hash = h.toString() ? ('#' + h.toString()) : '';
+        }
+      }
+      history.replaceState(null, '', url.pathname + url.search + url.hash);
+    } catch (_) {}
+  }
+
+  function openSlotFromIntent() {
+    const slot = getRequestedSlot();
+    if (!slot) return;
+    showTodayView();
+    renderToday();
+    openQuestion(slot);
+    clearRequestedSlotFromUrl();
   }
 
   function renderToday() {
@@ -200,36 +256,133 @@
     });
   });
 
-  function updateNotifStatus() {
+  async function scheduleDailyReminders() {
+    const LN = getLocalNotifications();
+    if (!LN) return { ok: false, reason: 'unavailable' };
+    try {
+      const perm = await LN.requestPermissions();
+      const granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
+      if (!granted) return { ok: false, reason: 'denied' };
+
+      try { await LN.cancel({ notifications: SLOTS.map(s => ({ id: s.notifId })) }); } catch (_) {}
+
+      const notifications = SLOTS.map(s => ({
+        id: s.notifId,
+        title: 'Headache check-in',
+        body: s.label + ': Are you experiencing a headache?',
+        schedule: { on: { hour: s.hour, minute: s.minute }, allowWhileIdle: true },
+        extra: { slot: s.key },
+        smallIcon: 'ic_stat_icon_config_sample',
+        actionTypeId: '',
+        sound: undefined
+      }));
+      await LN.schedule({ notifications });
+      localStorage.setItem(SCHEDULE_KEY, '1');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, reason: 'error' };
+    }
+  }
+
+  async function setupNativeNotifications() {
+    const LN = getLocalNotifications();
+    if (!LN) return;
+    try {
+      const perm = await LN.checkPermissions();
+      const granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
+      if (granted) await scheduleDailyReminders();
+
+      LN.addListener('localNotificationActionPerformed', function (event) {
+        const slot = event && event.notification && event.notification.extra ? event.notification.extra.slot : null;
+        if (slot && SLOTS.some(s => s.key === slot)) {
+          showTodayView();
+          renderToday();
+          openQuestion(slot);
+        }
+      });
+    } catch (_) {}
+  }
+
+  async function updateNotifStatus() {
+    if (isNativeApp()) {
+      const LN = getLocalNotifications();
+      if (!LN) {
+        notifStatus.textContent = 'Notifications are not available in this app build.';
+        notifBtn.disabled = true;
+        return;
+      }
+      try {
+        const perm = await LN.checkPermissions();
+        const granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
+        if (granted) {
+          notifStatus.textContent = 'Daily reminders are enabled (08:00, 13:00, 19:00). Tapping a reminder opens that check-in.';
+        } else if (perm && perm.display === 'denied') {
+          notifStatus.textContent = 'Notifications are blocked. You can enable them in Android app settings.';
+        } else {
+          notifStatus.textContent = 'Notifications are not enabled yet. Tap below to enable daily reminders.';
+        }
+      } catch (_) {
+        notifStatus.textContent = 'Tap below to enable daily reminders.';
+      }
+      notifBtn.disabled = false;
+      notifBtn.textContent = 'Enable daily reminders';
+      return;
+    }
+
     if (!('Notification' in window)) {
       notifStatus.textContent = 'Notifications are not supported in this browser.';
       notifBtn.disabled = true;
       return;
     }
     const p = Notification.permission;
-    if (p === 'granted') notifStatus.textContent = 'Notifications are enabled (best effort when the app/browser allows).';
+    if (p === 'granted') notifStatus.textContent = 'Notifications are enabled (best effort in browser). For reliable times, use phone alarms or the Android app.';
     else if (p === 'denied') notifStatus.textContent = 'Notifications are blocked. You can change this in browser/site settings.';
     else notifStatus.textContent = 'Notifications are not enabled yet.';
+    notifBtn.textContent = 'Enable notifications';
   }
+
   notifBtn.addEventListener('click', async function () {
+    if (isNativeApp()) {
+      const res = await scheduleDailyReminders();
+      await updateNotifStatus();
+      if (res && res.ok) {
+        notifStatus.textContent = 'Daily reminders scheduled for 08:00, 13:00, and 19:00.';
+      } else if (res && res.reason === 'denied') {
+        notifStatus.textContent = 'Permission not granted. Please allow notifications in Android settings for this app.';
+      } else {
+        notifStatus.textContent = 'Could not schedule reminders. Please allow notifications and try again.';
+      }
+      return;
+    }
+
     if (!('Notification' in window)) return;
     try {
       const perm = await Notification.requestPermission();
-      updateNotifStatus();
+      await updateNotifStatus();
       if (perm === 'granted') {
-        new Notification('Headache Tracker', { body: 'Notifications enabled. Remember: exact-time reminders are best set as phone alarms.' });
+        new Notification('Headache Tracker', { body: 'Notifications enabled. For reliable exact-time reminders, use the Android app or phone alarms.' });
       }
-    } catch (_) { updateNotifStatus(); }
+    } catch (_) { await updateNotifStatus(); }
   });
 
-  // Register service worker
-  if ('serviceWorker' in navigator) {
+  // Register service worker (web/PWA only)
+  if (!isNativeApp() && 'serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('./sw.js').catch(function () {});
     });
   }
 
-  updateNotifStatus();
+  // Initialize
   renderToday();
   renderStats();
+  updateNotifStatus();
+  openSlotFromIntent();
+  if (isNativeApp()) {
+    setupNativeNotifications();
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') openSlotFromIntent();
+  });
+  window.addEventListener('focus', openSlotFromIntent);
 })();

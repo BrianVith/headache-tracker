@@ -1,59 +1,77 @@
-# Headache Tracker (PWA)
+# Headache Tracker (PWA + Android APK)
 
-A simple, installable web app to track daily headache check-ins.
+A simple headache tracker app.
 
 - **3 daily slots:** Morning (08:00), Midday (13:00), Evening (19:00)
 - **Question:** "Are you experiencing a headache?" (Yes / No)
-- **Storage:** saved only on the device (browser storage), no account, no backend
-- **Works offline** after install (PWA)
+- **Storage:** saved only on the device (local storage), no account, no backend
+- **Statistics:** local history and summaries
+- **Android app (Capacitor):** supports on-device scheduled local reminders at 08:00/13:00/19:00; tapping a reminder opens the matching check-in
 
-## Project status
-v1 implements on-device logging and local statistics. Scheduled background notifications at exact times are **not guaranteed** for a static/no-backend PWA; for reliable prompts, set 3 daily alarms in the phone's Clock app to open the app.
+## Project layout
+- `index.html`, `styles.css`, `app.js` – web app UI/logic
+- `manifest.webmanifest`, `sw.js`, `icons/` – PWA assets
+- `capacitor.config.json`, `package.json` – Capacitor/Android app configuration
+- `android/` – generated after adding the Android platform (not committed until generated)
 
-## Local preview
-This is a static site (no build step). Serve the folder over HTTP locally, for example:
+Data remains local on-device in both web and Android app usage.
+
+## Web/PWA preview (optional)
+Static site, no build step required:
 
 ```bash
 cd /home/beve/aiproject/wife-app
 python3 -m http.server 8080
+# open http://localhost:8080
 ```
 
-Then open `http://localhost:8080` in a browser.
+The browser/PWA version cannot guarantee exact-time background reminders. For reliable reminders, use the Android app build below.
 
-> Note: Service workers/PWA install behavior is limited on plain localhost/HTTP in some contexts; full install testing is best done on the deployed HTTPS (GitHub Pages) URL from the target phone.
+## Build Android APK (one-time assisted install)
 
-## Deploy to GitHub Pages (recommended)
-1. Create a **new GitHub repository** under your account (e.g. `headache-tracker`). Do **not** reuse the `pokebulb` repo.
-2. In this folder, initialize and push:
-   ```bash
-   cd /home/beve/aiproject/wife-app
-   git init
-   git add .
-   git commit -m "Initial headache tracker PWA"
-   git branch -M main
-   git remote add origin git@github.com:<your-user>/headache-tracker.git
-   git push -u origin main
-   ```
-3. In GitHub: **Settings → Pages** → set Source to **Deploy from a branch**, choose `main` and `/ (root)`, then save.
-4. Your site will be available at `https://<your-user>.github.io/headache-tracker/`.
+### Prerequisites
+- Node.js + npm
+- Android Studio (with Android SDK / platform tools) and JDK
 
-All asset paths are relative (`./...`), so it works under the repository subpath.
+### 1) Install dependencies and add Android platform
+```bash
+cd /home/beve/aiproject/wife-app
+npm install
+npx cap add android
+npx cap sync android
+```
 
-## Install on Samsung Galaxy S24 FE (easy)
-1. Open **Chrome** on the phone and go to the GitHub Pages URL.
-2. Tap the menu (**⋮**) → **Add to Home screen** or **Install app** → confirm.
-3. Open **Headache Tracker** from the home screen icon.
-4. (Optional) Allow notifications if prompted. For reliable 3× daily prompts, also set phone Clock alarms for 08:00, 13:00, and 19:00 to open the app.
+### 2) Open in Android Studio and build APK
+```bash
+npx cap open android
+```
+In Android Studio:
+- Let Gradle sync complete
+- **Build → Build Bundle(s) / APK(s) → Build APK(s)** (debug APK is fine for one-time assisted install)
+- APK output is typically under `android/app/build/outputs/apk/debug/`
 
-## Data & privacy
-- Entries are stored locally on the device (`localStorage`).
-- No data is sent to a server by the app.
-- Clearing site/app data or uninstalling/removing browser storage can delete history.
+After any web file changes (`index.html`, `app.js`, `styles.css`, etc.), run:
+```bash
+npx cap sync android
+```
+then rebuild the APK.
 
-## Files
-- `index.html` – UI structure
-- `styles.css` – styles
-- `app.js` – app logic, storage, stats
-- `manifest.webmanifest` – PWA manifest
-- `sw.js` – service worker (offline caching)
-- `icons/icon.svg` – app icon
+### 3) Install on Samsung Galaxy S24 FE (assisted)
+1. Transfer the APK to the phone (USB, file share, etc.).
+2. Open/install it and allow **Install unknown apps** for the installer app if prompted (one-time).
+3. Open **Headache Tracker**, allow **Notifications** when prompted.
+4. Confirm reminders are scheduled (About & reminders → Enable daily reminders). Test by temporarily changing device time or using test scheduling if needed, then restore.
+
+Tapping a reminder should open the app directly to that slot’s Yes/No question.
+
+## Deploy web version to GitHub Pages (optional)
+The web version can still be hosted on GitHub Pages:
+1. Push to your repo (e.g. `BrianVith/headache-tracker`)
+2. GitHub **Settings → Pages** → Source: **Deploy from a branch**, Branch: `main`, Folder: `/ (root)`
+
+Relative paths are used so it works under `/<repo>/`.
+
+## Notes
+- Clearing app/site data or uninstalling removes locally stored history.
+- Exact alarm/reminder behavior can be affected by Android battery optimization settings; if reminders are delayed, exempt the app from aggressive battery optimization on the device.
+- This project is separate from `/home/beve/aiproject/ai` (`pokebulb`).
