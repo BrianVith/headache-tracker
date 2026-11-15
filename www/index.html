@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#4a6fa5" />
+    <meta name="description" content="Simple headache tracker" />
+    <title>Headache Tracker</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <h1>Headache Tracker</h1>
+      <p id="today-label" class="subtle"></p>
+    </header>
+
+    <nav class="tabs" aria-label="Views">
+      <button class="tab active" data-view="today" type="button">Today</button>
+      <button class="tab" data-view="stats" type="button">Statistics</button>
+      <button class="tab" data-view="about" type="button">About</button>
+    </nav>
+
+    <main>
+      <section id="view-today" class="view active" aria-labelledby="today-heading">
+        <h2 id="today-heading">Today's check-ins</h2>
+        <div id="slots" class="slots" aria-live="polite"></div>
+
+        <div id="question-card" class="card hidden" role="dialog" aria-labelledby="question-text">
+          <p id="question-slot" class="slot-label"></p>
+          <p id="question-text" class="question">Are you experiencing a headache?</p>
+          <div class="actions">
+            <button id="btn-yes" class="btn btn-yes" type="button">Yes</button>
+            <button id="btn-no" class="btn btn-no" type="button">No</button>
+          </div>
+          <button id="btn-cancel" class="btn btn-secondary" type="button">Cancel</button>
+        </div>
+      </section>
+
+      <section id="view-stats" class="view" aria-labelledby="stats-heading">
+        <h2 id="stats-heading">Statistics</h2>
+        <div class="card">
+          <div class="stats-controls">
+            <label for="range">Range:</label>
+            <select id="range">
+              <option value="7">Last 7 days</option>
+              <option value="30" selected>Last 30 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </div>
+          <div id="stats-summary" class="stats-summary"></div>
+        </div>
+        <div class="card">
+          <h3>Recent entries</h3>
+          <div id="history" class="history"></div>
+        </div>
+      </section>
+
+      <section id="view-about" class="view" aria-labelledby="about-heading">
+        <h2 id="about-heading">About & reminders</h2>
+        <div class="card">
+          <p>This app saves entries <strong>only on this phone</strong>. No account is needed. Headache data stays on-device.</p>
+          <p><strong>Daily slots:</strong> Morning (08:00), Midday (13:00), Evening (19:00).</p>
+        </div>
+        <div class="card">
+          <h3>Daily reminders</h3>
+          <p class="subtle">In the Android app, reminders can be scheduled on this phone at 08:00, 13:00, and 19:00 and open the correct check-in when tapped. In the browser/PWA version, exact background reminders are not guaranteed.</p>
+          <p id="notif-status" class="subtle"></p>
+          <button id="btn-notif" class="btn btn-primary" type="button">Enable daily reminders</button>
+        </div>
+      </section>
+    </main>
+
+    <template id="slot-template">
+      <div class="slot card">
+        <div class="slot-info">
+          <div class="slot-name"></div>
+          <div class="slot-time subtle"></div>
+          <div class="slot-status"></div>
+        </div>
+        <button class="btn btn-primary slot-action" type="button">Log</button>
+      </div>
+    </template>
+
+    <script src="./capacitor.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>

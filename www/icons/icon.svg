@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Headache Tracker icon">
+  <rect width="512" height="512" rx="96" fill="#4a6fa5"/>
+  <rect x="96" y="120" width="320" height="296" rx="28" fill="#ffffff"/>
+  <rect x="96" y="120" width="320" height="72" rx="28" fill="#3b5b8a"/>
+  <rect x="152" y="88" width="40" height="64" rx="12" fill="#dbe3ee"/>
+  <rect x="320" y="88" width="40" height="64" rx="12" fill="#dbe3ee"/>
+  <circle cx="256" cy="300" r="84" fill="#fff7ed" stroke="#c2410c" stroke-width="16"/>
+  <path d="M220 300h72" stroke="#c2410c" stroke-width="18" stroke-linecap="round"/>
+  <path d="M256 264v72" stroke="#15803d" stroke-width="18" stroke-linecap="round" opacity="0.25"/>
+  <text x="256" y="168" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" fill="#ffffff">LOG</text>
+</svg>

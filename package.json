@@ -5,8 +5,9 @@
   "description": "Simple headache tracker PWA/Android app with on-device storage and local reminders.",
   "scripts": {
     "start": "python3 -m http.server 8080",
-    "cap:sync": "npx cap sync",
-    "cap:android": "npx cap add android",
+    "sync:web": "mkdir -p www/icons && cp index.html app.js styles.css manifest.webmanifest sw.js www/ && cp -r icons/. www/icons/ && cp .nojekyll www/ 2>/dev/null || true",
+    "cap:sync": "npm run sync:web && npx cap sync android",
+    "cap:add:android": "npx cap add android",
     "cap:open:android": "npx cap open android"
   },
   "dependencies": {

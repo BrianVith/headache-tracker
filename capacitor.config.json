@@ -1,8 +1,7 @@
 {
   "appId": "com.brianvith.headachetracker",
   "appName": "Headache Tracker",
-  "webDir": ".",
-  "bundledWebRuntime": false,
+  "webDir": "www",
   "server": {
     "androidScheme": "https"
   }

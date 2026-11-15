@@ -11,8 +11,9 @@ A simple headache tracker app.
 ## Project layout
 - `index.html`, `styles.css`, `app.js` – web app UI/logic
 - `manifest.webmanifest`, `sw.js`, `icons/` – PWA assets
-- `capacitor.config.json`, `package.json` – Capacitor/Android app configuration
-- `android/` – generated after adding the Android platform (not committed until generated)
+- `capacitor.config.json`, `package.json` – Capacitor/Android app configuration (`webDir: "www"`)
+- `www/` – web assets copied for Capacitor (keep in sync with root web files before `cap sync`)
+- `android/` – generated native Android project (created by `cap add android`)
 
 Data remains local on-device in both web and Android app usage.
 
@@ -33,13 +34,15 @@ The browser/PWA version cannot guarantee exact-time background reminders. For re
 - Node.js + npm
 - Android Studio (with Android SDK / platform tools) and JDK
 
-### 1) Install dependencies and add Android platform
+### 1) Install dependencies and add/sync Android platform
 ```bash
 cd /home/beve/aiproject/wife-app
 npm install
-npx cap add android
-npx cap sync android
+# android/ is already included if you pulled this repo state; otherwise:
+# npx cap add android
+npm run cap:sync
 ```
+(Use your Linux/WSL Node+npm. `cap:sync` copies web files to `www/` and runs `npx cap sync android`.)
 
 ### 2) Open in Android Studio and build APK
 ```bash
@@ -52,9 +55,9 @@ In Android Studio:
 
 After any web file changes (`index.html`, `app.js`, `styles.css`, etc.), run:
 ```bash
-npx cap sync android
+npm run cap:sync
 ```
-then rebuild the APK.
+(or copy updated files into `www/` and run `npx cap sync android`) then rebuild the APK.
 
 ### 3) Install on Samsung Galaxy S24 FE (assisted)
 1. Transfer the APK to the phone (USB, file share, etc.).
@@ -75,3 +78,4 @@ Relative paths are used so it works under `/<repo>/`.
 - Clearing app/site data or uninstalling removes locally stored history.
 - Exact alarm/reminder behavior can be affected by Android battery optimization settings; if reminders are delayed, exempt the app from aggressive battery optimization on the device.
 - This project is separate from `/home/beve/aiproject/ai` (`pokebulb`).
+- If `npx cap ...` fails in WSL with `cap: Permission denied` or Windows `CMD.EXE` UNC path errors, use a Linux Node/npm (e.g. nvm) from `/home/beve/aiproject/wife-app`, or run `node ./node_modules/@capacitor/cli/bin/capacitor <command>`.
