@@ -66,8 +66,11 @@ h3 { margin: 0 0 8px; font-size: 1.05rem; }
 .slots { display: grid; gap: 12px; }
 .slot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0; }
 .slot-info { flex: 1; }
+.slot-header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .slot-name { font-size: 1.15rem; font-weight: 700; }
+.slot-time { white-space: nowrap; }
 .slot-status { margin-top: 4px; font-weight: 600; }
+.slot-extra { margin-top: 2px; line-height: 1.35; }
 .status-none { color: var(--muted); font-weight: 500; }
 .status-yes { color: var(--yes); }
 .status-no { color: var(--no); }

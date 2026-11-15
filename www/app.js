@@ -1,8 +1,8 @@
 (function () {
   const SLOTS = [
-    { key: 'morning', label: 'Morning', time: '08:00', hour: 8, minute: 0, notifId: 1001 },
-    { key: 'midday', label: 'Midday', time: '13:00', hour: 13, minute: 0, notifId: 1002 },
-    { key: 'evening', label: 'Evening', time: '19:00', hour: 19, minute: 0, notifId: 1003 }
+    { key: 'morning', label: 'Morgen', time: '08:00', hour: 8, minute: 0, notifId: 1001 },
+    { key: 'midday', label: 'Middag', time: '13:00', hour: 13, minute: 0, notifId: 1002 },
+    { key: 'evening', label: 'Aften', time: '19:00', hour: 19, minute: 0, notifId: 1003 }
   ];
   const STORAGE_KEY = 'headache-tracker-entries-v1';
   const SCHEDULE_KEY = 'headache-tracker-reminders-scheduled-v1';
@@ -300,22 +300,36 @@
     SLOTS.forEach(slot => {
       const node = slotTemplate.content.firstElementChild.cloneNode(true);
       node.querySelector('.slot-name').textContent = slot.label;
-      node.querySelector('.slot-time').textContent = 'Ca. ' + slot.time;
+      node.querySelector('.slot-time').textContent = slot.time;
       const statusEl = node.querySelector('.slot-status');
+      const extraEl = node.querySelector('.slot-extra');
       const btn = node.querySelector('.slot-action');
       const entry = normalizeEntry(getEntry(entries, key, slot.key));
+
+      extraEl.innerHTML = '';
+      extraEl.className = 'slot-extra subtle';
 
       if (!entry || (entry.headache !== 'ja' && entry.headache !== 'nej')) {
         statusEl.textContent = 'Ikke registreret';
         statusEl.className = 'slot-status status-none';
         btn.textContent = 'Log';
-      } else if (entry.headache === 'ja') {
-        statusEl.textContent = 'Hovedpine: Ja' + (entry.severity ? ' (' + entry.severity + '/5)' : '');
-        statusEl.className = 'slot-status status-yes';
-        btn.textContent = 'Ret';
       } else {
-        statusEl.textContent = 'Hovedpine: Nej';
-        statusEl.className = 'slot-status status-no';
+        if (entry.headache === 'ja') {
+          statusEl.textContent = 'Hovedpine: Ja' + (entry.severity ? ' (' + entry.severity + '/5)' : '');
+          statusEl.className = 'slot-status status-yes';
+        } else {
+          statusEl.textContent = 'Hovedpine: Nej';
+          statusEl.className = 'slot-status status-no';
+        }
+
+        const lines = [];
+        if (entry.atWork === 'ja' || entry.atWork === 'nej') {
+          lines.push('Arbejde: ' + (entry.atWork === 'ja' ? 'Ja' : 'Nej'));
+        }
+        if (entry.atWork === 'ja' && (entry.glasses === 'ja' || entry.glasses === 'nej')) {
+          lines.push('Skærmbriller: ' + (entry.glasses === 'ja' ? 'Ja' : 'Nej'));
+        }
+        if (lines.length) extraEl.innerHTML = lines.join('<br>');
         btn.textContent = 'Ret';
       }
 
