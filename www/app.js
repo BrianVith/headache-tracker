@@ -12,8 +12,10 @@
   const slotTemplate = document.getElementById('slot-template');
   const questionCard = document.getElementById('question-card');
   const questionSlot = document.getElementById('question-slot');
-  const btnYes = document.getElementById('btn-yes');
-  const btnNo = document.getElementById('btn-no');
+  const questionProgress = document.getElementById('question-progress');
+  const questionText = document.getElementById('question-text');
+  const questionOptions = document.getElementById('question-options');
+  const btnBack = document.getElementById('btn-back');
   const btnCancel = document.getElementById('btn-cancel');
   const rangeSelect = document.getElementById('range');
   const statsSummary = document.getElementById('stats-summary');
@@ -24,10 +26,10 @@
   const notifTestStatus = document.getElementById('notif-test-status');
 
   let activeSlotKey = null;
+  let formDraft = null;
+  let currentStepKey = null;
 
-  function getCapacitor() {
-    return window.Capacitor || null;
-  }
+  function getCapacitor() { return window.Capacitor || null; }
   function isNativeApp() {
     const cap = getCapacitor();
     return !!(cap && typeof cap.isNativePlatform === 'function' && cap.isNativePlatform());
@@ -45,15 +47,42 @@
   function formatDateKey(key) {
     const [y, m, d] = key.split('-').map(Number);
     const dt = new Date(y, m - 1, d);
-    return dt.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return dt.toLocaleDateString('da-DK', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
   }
   function todayKey() { return toDateKey(new Date()); }
+
+  function normalizeEntry(e) {
+    if (!e || typeof e !== 'object') return null;
+    const out = Object.assign({}, e);
+    if (!out.headache) {
+      if (out.answer === 'yes') out.headache = 'ja';
+      else if (out.answer === 'no') out.headache = 'nej';
+      else out.headache = null;
+    }
+    if (out.headache !== 'ja' && out.headache !== 'nej') out.headache = null;
+    if (out.headache === 'ja') {
+      const sev = parseInt(out.severity, 10);
+      out.severity = (sev >= 1 && sev <= 5) ? sev : null;
+    } else {
+      out.severity = null;
+    }
+    if (out.atWork !== 'ja' && out.atWork !== 'nej') out.atWork = null;
+    if (out.atWork === 'ja') {
+      out.workType = (out.workType === 'moeder' || out.workType === 'skaermarbejde') ? out.workType : null;
+      out.glasses = (out.glasses === 'ja' || out.glasses === 'nej') ? out.glasses : null;
+    } else {
+      out.workType = null;
+      out.glasses = null;
+    }
+    return out;
+  }
 
   function loadEntries() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
+      if (!Array.isArray(arr)) return [];
+      return arr.map(normalizeEntry).filter(Boolean);
     } catch (_) { return []; }
   }
   function saveEntries(entries) {
@@ -65,15 +94,23 @@
   function getEntry(entries, dateKey, slotKey) {
     return entries.find(e => e.date === dateKey && e.slot === slotKey) || null;
   }
-  function upsertEntry(dateKey, slotKey, answer) {
+  function upsertEntry(dateKey, slotKey, data) {
     const entries = loadEntries();
     const existing = getEntry(entries, dateKey, slotKey);
     const now = new Date().toISOString();
+    const payload = {
+      headache: data.headache,
+      severity: data.severity,
+      atWork: data.atWork,
+      workType: data.workType,
+      glasses: data.glasses,
+      // legacy compatibility
+      answer: data.headache === 'ja' ? 'yes' : 'no'
+    };
     if (existing) {
-      existing.answer = answer;
-      existing.recordedAt = now;
+      Object.assign(existing, payload, { recordedAt: now });
     } else {
-      entries.push({ id: entryId(), date: dateKey, slot: slotKey, answer: answer, recordedAt: now });
+      entries.push(Object.assign({ id: entryId(), date: dateKey, slot: slotKey, recordedAt: now }, payload));
     }
     saveEntries(entries);
   }
@@ -101,7 +138,6 @@
       return SLOTS.some(s => s.key === slot) ? slot : null;
     } catch (_) { return null; }
   }
-
   function clearRequestedSlotFromUrl() {
     try {
       const url = new URL(window.location.href);
@@ -117,14 +153,143 @@
     } catch (_) {}
   }
 
-  function openSlotFromIntent() {
-    const slot = getRequestedSlot();
-    if (!slot) return;
-    showTodayView();
-    renderToday();
-    openQuestion(slot);
-    clearRequestedSlotFromUrl();
+  function computeSteps(draft) {
+    const steps = ['headache'];
+    if (draft.headache === 'ja') steps.push('severity');
+    steps.push('atWork');
+    if (draft.atWork === 'ja') {
+      steps.push('workType');
+      steps.push('glasses');
+    }
+    return steps;
   }
+
+  function stepConfig(key) {
+    if (key === 'headache') {
+      return { text: 'Har du hovedpine?', type: 'choices', layout: 'two-col', options: [
+        { value: 'ja', label: 'Ja', cls: 'btn-yes' },
+        { value: 'nej', label: 'Nej', cls: 'btn-no' }
+      ]};
+    }
+    if (key === 'severity') {
+      return { text: 'Hvor stærk er hovedpinen? (1-5)', type: 'scale', layout: 'scale', options: [1,2,3,4,5].map(n => ({ value: n, label: String(n), cls: 'btn-option btn-scale' })) };
+    }
+    if (key === 'atWork') {
+      return { text: 'Var du på arbejde i dag?', type: 'choices', layout: 'two-col', options: [
+        { value: 'ja', label: 'Ja', cls: 'btn-option' },
+        { value: 'nej', label: 'Nej', cls: 'btn-option' }
+      ]};
+    }
+    if (key === 'workType') {
+      return { text: 'Har du haft flest møder eller mest skærmarbejde?', type: 'choices', layout: '', options: [
+        { value: 'moeder', label: 'Flest møder', cls: 'btn-option' },
+        { value: 'skaermarbejde', label: 'Mest skærmarbejde', cls: 'btn-option' }
+      ]};
+    }
+    if (key === 'glasses') {
+      return { text: 'Har du husket at bruge dine skærmbriller?', type: 'choices', layout: 'two-col', options: [
+        { value: 'ja', label: 'Ja', cls: 'btn-option' },
+        { value: 'nej', label: 'Nej', cls: 'btn-option' }
+      ]};
+    }
+    return { text: '', options: [] };
+  }
+
+  function isDraftComplete(draft) {
+    if (draft.headache !== 'ja' && draft.headache !== 'nej') return false;
+    if (draft.headache === 'ja' && !(draft.severity >= 1 && draft.severity <= 5)) return false;
+    if (draft.atWork !== 'ja' && draft.atWork !== 'nej') return false;
+    if (draft.atWork === 'ja') {
+      if (draft.workType !== 'moeder' && draft.workType !== 'skaermarbejde') return false;
+      if (draft.glasses !== 'ja' && draft.glasses !== 'nej') return false;
+    }
+    return true;
+  }
+
+  function renderQuestionStep() {
+    if (!formDraft || !currentStepKey) return;
+    const steps = computeSteps(formDraft);
+    const idx = Math.max(0, steps.indexOf(currentStepKey));
+    const cfg = stepConfig(currentStepKey);
+    questionProgress.textContent = 'Trin ' + (idx + 1) + ' af ' + steps.length;
+    questionText.textContent = cfg.text;
+    questionOptions.innerHTML = '';
+    questionOptions.className = 'options' + (cfg.layout ? ' ' + cfg.layout : '');
+
+    const currentVal = formDraft[currentStepKey];
+    cfg.options.forEach(opt => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn ' + (opt.cls || 'btn-option');
+      btn.textContent = opt.label;
+      if (currentVal === opt.value) btn.classList.add('selected');
+      btn.addEventListener('click', function () { onAnswer(currentStepKey, opt.value); });
+      questionOptions.appendChild(btn);
+    });
+
+    btnBack.disabled = idx === 0;
+  }
+
+  function onAnswer(stepKey, value) {
+    if (!formDraft) return;
+    formDraft[stepKey] = value;
+    // clear dependent fields when prerequisites change
+    if (stepKey === 'headache' && value === 'nej') formDraft.severity = null;
+    if (stepKey === 'atWork' && value === 'nej') { formDraft.workType = null; formDraft.glasses = null; }
+
+    const steps = computeSteps(formDraft);
+    const idx = steps.indexOf(stepKey);
+    const next = (idx >= 0 && idx < steps.length - 1) ? steps[idx + 1] : null;
+    if (next) {
+      currentStepKey = next;
+      renderQuestionStep();
+    } else if (isDraftComplete(formDraft)) {
+      upsertEntry(todayKey(), activeSlotKey, formDraft);
+      closeQuestion();
+      renderToday();
+      renderStats();
+    } else {
+      // should not happen, but re-render to show current state
+      currentStepKey = steps[steps.length - 1] || stepKey;
+      renderQuestionStep();
+    }
+  }
+
+  function openQuestion(slotKey) {
+    activeSlotKey = slotKey;
+    const s = SLOTS.find(x => x.key === slotKey);
+    questionSlot.textContent = (s ? s.label : slotKey) + ' check-in';
+    const existing = normalizeEntry(getEntry(loadEntries(), todayKey(), slotKey) || {});
+    formDraft = {
+      headache: existing && (existing.headache === 'ja' || existing.headache === 'nej') ? existing.headache : null,
+      severity: existing ? existing.severity : null,
+      atWork: existing && (existing.atWork === 'ja' || existing.atWork === 'nej') ? existing.atWork : null,
+      workType: existing ? existing.workType : null,
+      glasses: existing ? existing.glasses : null
+    };
+    currentStepKey = 'headache';
+    questionCard.classList.remove('hidden');
+    renderQuestionStep();
+    questionCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  function closeQuestion() {
+    activeSlotKey = null;
+    formDraft = null;
+    currentStepKey = null;
+    questionCard.classList.add('hidden');
+  }
+
+  btnBack.addEventListener('click', function () {
+    if (!formDraft || !currentStepKey) return;
+    const steps = computeSteps(formDraft);
+    const idx = steps.indexOf(currentStepKey);
+    if (idx > 0) {
+      currentStepKey = steps[idx - 1];
+      renderQuestionStep();
+    }
+  });
+  btnCancel.addEventListener('click', closeQuestion);
 
   function renderToday() {
     const key = todayKey();
@@ -135,57 +300,29 @@
     SLOTS.forEach(slot => {
       const node = slotTemplate.content.firstElementChild.cloneNode(true);
       node.querySelector('.slot-name').textContent = slot.label;
-      node.querySelector('.slot-time').textContent = 'Around ' + slot.time;
+      node.querySelector('.slot-time').textContent = 'Ca. ' + slot.time;
       const statusEl = node.querySelector('.slot-status');
       const btn = node.querySelector('.slot-action');
-      const entry = getEntry(entries, key, slot.key);
+      const entry = normalizeEntry(getEntry(entries, key, slot.key));
 
-      if (!entry) {
-        statusEl.textContent = 'Not logged yet';
+      if (!entry || (entry.headache !== 'ja' && entry.headache !== 'nej')) {
+        statusEl.textContent = 'Ikke registreret';
         statusEl.className = 'slot-status status-none';
         btn.textContent = 'Log';
-      } else if (entry.answer === 'yes') {
-        statusEl.textContent = 'Headache: Yes';
+      } else if (entry.headache === 'ja') {
+        statusEl.textContent = 'Hovedpine: Ja' + (entry.severity ? ' (' + entry.severity + '/5)' : '');
         statusEl.className = 'slot-status status-yes';
-        btn.textContent = 'Change';
+        btn.textContent = 'Ret';
       } else {
-        statusEl.textContent = 'Headache: No';
+        statusEl.textContent = 'Hovedpine: Nej';
         statusEl.className = 'slot-status status-no';
-        btn.textContent = 'Change';
+        btn.textContent = 'Ret';
       }
 
       btn.addEventListener('click', function () { openQuestion(slot.key); });
       slotsEl.appendChild(node);
     });
   }
-
-  function openQuestion(slotKey) {
-    activeSlotKey = slotKey;
-    const s = SLOTS.find(x => x.key === slotKey);
-    questionSlot.textContent = (s ? s.label : slotKey) + ' check-in';
-    questionCard.classList.remove('hidden');
-    questionCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-  function closeQuestion() {
-    activeSlotKey = null;
-    questionCard.classList.add('hidden');
-  }
-
-  btnYes.addEventListener('click', function () {
-    if (!activeSlotKey) return;
-    upsertEntry(todayKey(), activeSlotKey, 'yes');
-    closeQuestion();
-    renderToday();
-    renderStats();
-  });
-  btnNo.addEventListener('click', function () {
-    if (!activeSlotKey) return;
-    upsertEntry(todayKey(), activeSlotKey, 'no');
-    closeQuestion();
-    renderToday();
-    renderStats();
-  });
-  btnCancel.addEventListener('click', closeQuestion);
 
   function withinLastDays(dateKey, days) {
     const [y, m, d] = dateKey.split('-').map(Number);
@@ -198,49 +335,61 @@
 
   function renderStats() {
     const days = parseInt(rangeSelect.value, 10) || 30;
-    const entries = loadEntries().filter(e => withinLastDays(e.date, days));
+    const entries = loadEntries().map(normalizeEntry).filter(e => e && withinLastDays(e.date, days));
     const total = entries.length;
-    const yes = entries.filter(e => e.answer === 'yes').length;
-    const no = entries.filter(e => e.answer === 'no').length;
-    const uniqueDays = new Set(entries.filter(e => e.answer === 'yes').map(e => e.date)).size;
-
-    const bySlot = {};
-    SLOTS.forEach(s => bySlot[s.key] = { yes: 0, no: 0, total: 0 });
-    entries.forEach(e => {
-      if (!bySlot[e.slot]) bySlot[e.slot] = { yes: 0, no: 0, total: 0 };
-      bySlot[e.slot].total++;
-      if (e.answer === 'yes') bySlot[e.slot].yes++; else bySlot[e.slot].no++;
-    });
+    const headacheYes = entries.filter(e => e.headache === 'ja');
+    const yes = headacheYes.length;
+    const no = entries.filter(e => e.headache === 'nej').length;
+    const uniqueDays = new Set(headacheYes.map(e => e.date)).size;
+    const sevVals = headacheYes.map(e => e.severity).filter(v => v >= 1 && v <= 5);
+    const avgSev = sevVals.length ? (sevVals.reduce((a,b)=>a+b,0) / sevVals.length) : null;
+    const atWorkYes = entries.filter(e => e.atWork === 'ja').length;
+    const meetings = entries.filter(e => e.atWork === 'ja' && e.workType === 'moeder').length;
+    const screens = entries.filter(e => e.atWork === 'ja' && e.workType === 'skaermarbejde').length;
+    const glassesYes = entries.filter(e => e.atWork === 'ja' && e.glasses === 'ja').length;
 
     const cards = [
-      { label: 'Logged check-ins', value: String(total) },
-      { label: 'Headache = Yes', value: String(yes) },
-      { label: 'Headache = No', value: String(no) },
-      { label: 'Days with headache', value: String(uniqueDays) }
+      { label: 'Registreringer', value: String(total) },
+      { label: 'Hovedpine = Ja', value: String(yes) },
+      { label: 'Hovedpine = Nej', value: String(no) },
+      { label: 'Dage med hovedpine', value: String(uniqueDays) },
+      { label: 'Gns. styrke (1-5)', value: avgSev ? avgSev.toFixed(1) : '-' },
+      { label: 'På arbejde (Ja)', value: String(atWorkYes) },
+      { label: 'Flest møder / skærm', value: meetings + ' / ' + screens },
+      { label: 'Skærmbriller brugt', value: String(glassesYes) }
     ];
     statsSummary.innerHTML = cards.map(c =>
       '<div class="stat"><div class="stat-value">' + c.value + '</div><div class="stat-label">' + c.label + '</div></div>'
-    ).join('') + SLOTS.map(s => {
-      const b = bySlot[s.key] || { yes: 0, no: 0, total: 0 };
-      return '<div class="stat"><div class="stat-value">' + b.yes + '/' + b.total + '</div><div class="stat-label">' + s.label + ' (yes/logged)</div></div>';
-    }).join('');
+    ).join('');
 
-    const recent = loadEntries().slice().sort((a, b) => {
+    const recent = loadEntries().map(normalizeEntry).filter(Boolean).slice().sort((a, b) => {
       const ka = a.date + ' ' + (a.recordedAt || '');
       const kb = b.date + ' ' + (b.recordedAt || '');
       return kb.localeCompare(ka);
     }).slice(0, 30);
 
     if (recent.length === 0) {
-      historyEl.innerHTML = '<p class="empty">No entries yet.</p>';
+      historyEl.innerHTML = '<p class="empty">Ingen registreringer endnu.</p>';
       return;
     }
     historyEl.innerHTML = recent.map(e => {
-      const badgeClass = e.answer === 'yes' ? 'badge-yes' : 'badge-no';
-      const answerText = e.answer === 'yes' ? 'Yes' : 'No';
-      const when = e.recordedAt ? new Date(e.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const hasHeadache = e.headache === 'ja';
+      const badgeClass = hasHeadache ? 'badge-yes' : (e.headache === 'nej' ? 'badge-no' : 'badge-none');
+      const answerText = hasHeadache ? ('Ja' + (e.severity ? ' (' + e.severity + '/5)' : '')) : (e.headache === 'nej' ? 'Nej' : '-');
+      const when = e.recordedAt ? new Date(e.recordedAt).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }) : '';
+      const details = [];
+      if (e.atWork === 'ja') {
+        details.push('Arbejde: Ja');
+        if (e.workType === 'moeder') details.push('Flest møder');
+        else if (e.workType === 'skaermarbejde') details.push('Mest skærmarbejde');
+        if (e.glasses === 'ja') details.push('Skærmbriller: Ja');
+        else if (e.glasses === 'nej') details.push('Skærmbriller: Nej');
+      } else if (e.atWork === 'nej') {
+        details.push('Arbejde: Nej');
+      }
       return '<div class="history-item"><div><strong>' + formatDateKey(e.date) + '</strong> · ' + slotLabel(e.slot) +
         (when ? ' <span class="subtle">(' + when + ')</span>' : '') +
+        (details.length ? '<div class="history-details">' + details.join(' · ') + '</div>' : '') +
         '</div><span class="badge ' + badgeClass + '">' + answerText + '</span></div>';
     }).join('');
   }
@@ -258,6 +407,15 @@
     });
   });
 
+  function openSlotFromIntent() {
+    const slot = getRequestedSlot();
+    if (!slot) return;
+    showTodayView();
+    renderToday();
+    openQuestion(slot);
+    clearRequestedSlotFromUrl();
+  }
+
   async function scheduleDailyReminders() {
     const LN = getLocalNotifications();
     if (!LN) return { ok: false, reason: 'unavailable' };
@@ -270,8 +428,8 @@
 
       const notifications = SLOTS.map(s => ({
         id: s.notifId,
-        title: 'Headache check-in',
-        body: s.label + ': Are you experiencing a headache?',
+        title: 'Hovedpine-tjek',
+        body: s.label + ': Har du hovedpine? Tryk for at svare.',
         schedule: { on: { hour: s.hour, minute: s.minute }, allowWhileIdle: true },
         extra: { slot: s.key },
         smallIcon: 'ic_stat_icon_config_sample',
@@ -309,7 +467,7 @@
     if (isNativeApp()) {
       const LN = getLocalNotifications();
       if (!LN) {
-        notifStatus.textContent = 'Notifications are not available in this app build.';
+        notifStatus.textContent = 'Notifikationer er ikke tilgængelige i denne app-version.';
         notifBtn.disabled = true;
         return;
       }
@@ -317,30 +475,30 @@
         const perm = await LN.checkPermissions();
         const granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
         if (granted) {
-          notifStatus.textContent = 'Daily reminders are enabled (08:00, 13:00, 19:00). Tapping a reminder opens that check-in.';
+          notifStatus.textContent = 'Daglige påmindelser er aktiveret (08:00, 13:00, 19:00). Tryk på en påmindelse for at svare.';
         } else if (perm && perm.display === 'denied') {
-          notifStatus.textContent = 'Notifications are blocked. You can enable them in Android app settings.';
+          notifStatus.textContent = 'Notifikationer er blokeret. Du kan aktivere dem i Android-indstillinger.';
         } else {
-          notifStatus.textContent = 'Notifications are not enabled yet. Tap below to enable daily reminders.';
+          notifStatus.textContent = 'Notifikationer er ikke aktiveret endnu. Tryk nedenfor for at aktivere.';
         }
       } catch (_) {
-        notifStatus.textContent = 'Tap below to enable daily reminders.';
+        notifStatus.textContent = 'Tryk nedenfor for at aktivere daglige påmindelser.';
       }
       notifBtn.disabled = false;
-      notifBtn.textContent = 'Enable daily reminders';
+      notifBtn.textContent = 'Aktivér daglige påmindelser';
       return;
     }
 
     if (!('Notification' in window)) {
-      notifStatus.textContent = 'Notifications are not supported in this browser.';
+      notifStatus.textContent = 'Notifikationer understøttes ikke i denne browser.';
       notifBtn.disabled = true;
       return;
     }
     const p = Notification.permission;
-    if (p === 'granted') notifStatus.textContent = 'Notifications are enabled (best effort in browser). For reliable times, use phone alarms or the Android app.';
-    else if (p === 'denied') notifStatus.textContent = 'Notifications are blocked. You can change this in browser/site settings.';
-    else notifStatus.textContent = 'Notifications are not enabled yet.';
-    notifBtn.textContent = 'Enable notifications';
+    if (p === 'granted') notifStatus.textContent = 'Notifikationer er aktiveret (bedst muligt i browser). For pålidelige tidspunkter, brug Android-appen eller telefonalarmer.';
+    else if (p === 'denied') notifStatus.textContent = 'Notifikationer er blokeret. Du kan ændre dette i browserens/sideindstillinger.';
+    else notifStatus.textContent = 'Notifikationer er ikke aktiveret endnu.';
+    notifBtn.textContent = 'Aktivér notifikationer';
   }
 
   notifBtn.addEventListener('click', async function () {
@@ -348,11 +506,11 @@
       const res = await scheduleDailyReminders();
       await updateNotifStatus();
       if (res && res.ok) {
-        notifStatus.textContent = 'Daily reminders scheduled for 08:00, 13:00, and 19:00.';
+        notifStatus.textContent = 'Daglige påmindelser planlagt kl. 08:00, 13:00 og 19:00.';
       } else if (res && res.reason === 'denied') {
-        notifStatus.textContent = 'Permission not granted. Please allow notifications in Android settings for this app.';
+        notifStatus.textContent = 'Tilladelse ikke givet. Tillad notifikationer i Android-indstillinger for appen.';
       } else {
-        notifStatus.textContent = 'Could not schedule reminders. Please allow notifications and try again.';
+        notifStatus.textContent = 'Kunne ikke planlægge påmindelser. Tillad notifikationer og prøv igen.';
       }
       return;
     }
@@ -362,7 +520,7 @@
       const perm = await Notification.requestPermission();
       await updateNotifStatus();
       if (perm === 'granted') {
-        new Notification('Headache Tracker', { body: 'Notifications enabled. For reliable exact-time reminders, use the Android app or phone alarms.' });
+        new Notification('Headache Tracker', { body: 'Notifikationer aktiveret. For pålidelige tidspunkter, brug Android-appen eller telefonalarmer.' });
       }
     } catch (_) { await updateNotifStatus(); }
   });
@@ -373,7 +531,7 @@
     if (isNativeApp()) {
       const LN = getLocalNotifications();
       if (!LN) {
-        if (notifTestStatus) notifTestStatus.textContent = 'Notifications are not available in this app build.';
+        if (notifTestStatus) notifTestStatus.textContent = 'Notifikationer er ikke tilgængelige i denne app-version.';
         return;
       }
       try {
@@ -384,7 +542,7 @@
           granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
         }
         if (!granted) {
-          if (notifTestStatus) notifTestStatus.textContent = 'Permission not granted. Allow notifications in Android settings, then try again.';
+          if (notifTestStatus) notifTestStatus.textContent = 'Tilladelse ikke givet. Tillad notifikationer i Android-indstillinger og prøv igen.';
           await updateNotifStatus();
           return;
         }
@@ -392,22 +550,22 @@
         await LN.schedule({
           notifications: [{
             id: id,
-            title: 'Headache Tracker test',
-            body: 'Notifications are working on this phone.',
+            title: 'Test-notifikation',
+            body: 'Notifikationer virker på denne telefon.',
             schedule: { at: new Date(Date.now() + 1500), allowWhileIdle: true },
             extra: { test: true }
           }]
         });
-        if (notifTestStatus) notifTestStatus.textContent = 'Test notification scheduled. It should appear in about 1–2 seconds.';
+        if (notifTestStatus) notifTestStatus.textContent = 'Test-notifikation planlagt. Den burde vises om ca. 1–2 sekunder.';
         await updateNotifStatus();
       } catch (e) {
-        if (notifTestStatus) notifTestStatus.textContent = 'Could not send test notification. Check notification permission/settings and try again.';
+        if (notifTestStatus) notifTestStatus.textContent = 'Kunne ikke sende test-notifikation. Tjek notifikationstilladelser/indstillinger og prøv igen.';
       }
       return;
     }
 
     if (!('Notification' in window)) {
-      if (notifTestStatus) notifTestStatus.textContent = 'Notifications are not supported in this browser.';
+      if (notifTestStatus) notifTestStatus.textContent = 'Notifikationer understøttes ikke i denne browser.';
       return;
     }
     try {
@@ -415,13 +573,13 @@
       if (perm !== 'granted') perm = await Notification.requestPermission();
       await updateNotifStatus();
       if (perm === 'granted') {
-        new Notification('Headache Tracker test', { body: 'Notifications are working in this browser.' });
-        if (notifTestStatus) notifTestStatus.textContent = 'Test notification sent.';
+        new Notification('Test-notifikation', { body: 'Notifikationer virker i denne browser.' });
+        if (notifTestStatus) notifTestStatus.textContent = 'Test-notifikation sendt.';
       } else {
-        if (notifTestStatus) notifTestStatus.textContent = 'Permission not granted. Enable notifications to test.';
+        if (notifTestStatus) notifTestStatus.textContent = 'Tilladelse ikke givet. Aktivér notifikationer for at teste.';
       }
     } catch (_) {
-      if (notifTestStatus) notifTestStatus.textContent = 'Could not send test notification.';
+      if (notifTestStatus) notifTestStatus.textContent = 'Kunne ikke sende test-notifikation.';
     }
   }
 

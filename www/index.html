@@ -25,35 +25,36 @@
 
     <main>
       <section id="view-today" class="view active" aria-labelledby="today-heading">
-        <h2 id="today-heading">Today's check-ins</h2>
+        <h2 id="today-heading">Dagens registreringer</h2>
         <div id="slots" class="slots" aria-live="polite"></div>
 
         <div id="question-card" class="card hidden" role="dialog" aria-labelledby="question-text">
           <p id="question-slot" class="slot-label"></p>
-          <p id="question-text" class="question">Are you experiencing a headache?</p>
-          <div class="actions">
-            <button id="btn-yes" class="btn btn-yes" type="button">Yes</button>
-            <button id="btn-no" class="btn btn-no" type="button">No</button>
+          <p id="question-progress" class="subtle"></p>
+          <p id="question-text" class="question"></p>
+          <div id="question-options" class="options"></div>
+          <div class="form-nav">
+            <button id="btn-back" class="btn btn-secondary" type="button">Tilbage</button>
+            <button id="btn-cancel" class="btn btn-secondary" type="button">Annuller</button>
           </div>
-          <button id="btn-cancel" class="btn btn-secondary" type="button">Cancel</button>
         </div>
       </section>
 
       <section id="view-stats" class="view" aria-labelledby="stats-heading">
-        <h2 id="stats-heading">Statistics</h2>
+        <h2 id="stats-heading">Statistik</h2>
         <div class="card">
           <div class="stats-controls">
-            <label for="range">Range:</label>
+            <label for="range">Periode:</label>
             <select id="range">
-              <option value="7">Last 7 days</option>
-              <option value="30" selected>Last 30 days</option>
-              <option value="90">Last 90 days</option>
+              <option value="7">Seneste 7 dage</option>
+              <option value="30" selected>Seneste 30 dage</option>
+              <option value="90">Seneste 90 dage</option>
             </select>
           </div>
           <div id="stats-summary" class="stats-summary"></div>
         </div>
         <div class="card">
-          <h3>Recent entries</h3>
+          <h3>Seneste registreringer</h3>
           <div id="history" class="history"></div>
         </div>
       </section>

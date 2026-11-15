@@ -88,8 +88,16 @@ h3 { margin: 0 0 8px; font-size: 1.05rem; }
 .btn-yes { background: var(--yes-bg); color: var(--yes); border: 2px solid #fdba74; }
 .btn-no { background: var(--no-bg); color: var(--no); border: 2px solid #86efac; }
 .slot-action { min-width: 110px; font-size: 1rem; }
-.question { font-size: 1.3rem; font-weight: 700; margin: 8px 0 0; }
+.question { font-size: 1.3rem; font-weight: 700; margin: 8px 0 12px; }
 .slot-label { margin: 0; color: var(--primary); font-weight: 700; }
+.options { display: grid; gap: 10px; margin: 8px 0 12px; }
+.options.two-col { grid-template-columns: 1fr 1fr; }
+.options.scale { grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.btn-option { background: #f8fafc; color: var(--text); border: 2px solid var(--border); width: 100%; }
+.btn-option.selected { border-color: var(--primary); background: #eaf1fb; }
+.btn-scale { min-height: 56px; font-size: 1.2rem; }
+.form-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.history-details { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
 .hidden { display: none; }
 .stats-controls { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 select { font-size: 1rem; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); }
