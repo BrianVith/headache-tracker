@@ -3,7 +3,12 @@ name: Build Android APK
 on:
   push:
     branches: [main, master]
+    tags:
+      - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -47,9 +52,26 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
+      - name: Prepare release APK name
+        run: |
+          APK_PATH=$(ls android/app/build/outputs/apk/debug/*.apk | head -n 1)
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            cp "$APK_PATH" "headache-tracker-${GITHUB_REF_NAME}.apk"
+          else
+            cp "$APK_PATH" "headache-tracker-debug.apk"
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: headache-tracker-debug-apk
-          path: android/app/build/outputs/apk/debug/*.apk
+          name: headache-tracker-apk
+          path: headache-tracker*.apk
           if-no-files-found: error
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: headache-tracker-${{ github.ref_name }}.apk
+          generate_release_notes: true
+          make_latest: true
