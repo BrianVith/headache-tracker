@@ -48,17 +48,37 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Build debug APK
+      - name: Set up signing keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ] || [ -z "$ANDROID_KEYSTORE_PASSWORD" ] || [ -z "$ANDROID_KEY_ALIAS" ] || [ -z "$ANDROID_KEY_PASSWORD" ]; then
+            echo "Missing signing secrets. Set ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD in GitHub repository secrets." >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/release-keystore.p12
+          cat > android/keystore.properties <<EOF
+          storeFile=app/release-keystore.p12
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          storeType=pkcs12
+          EOF
+
+      - name: Build signed release APK
         working-directory: android
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Prepare release APK name
         run: |
-          APK_PATH=$(ls android/app/build/outputs/apk/debug/*.apk | head -n 1)
+          APK_PATH=$(ls android/app/build/outputs/apk/release/*.apk | head -n 1)
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             cp "$APK_PATH" "headache-tracker-${GITHUB_REF_NAME}.apk"
           else
-            cp "$APK_PATH" "headache-tracker-debug.apk"
+            cp "$APK_PATH" "headache-tracker-release.apk"
           fi
 
       - name: Upload APK artifact

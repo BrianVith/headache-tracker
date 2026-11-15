@@ -12,3 +12,14 @@ android/captures/
 android/.idea/
 *.iml
 .gradle/
+
+# Signing / keystores (do not commit)
+*.jks
+*.keystore
+*.p12
+keystore.properties
+android/keystore.properties
+android/app/keystore.properties
+android/app/*.p12
+android/app/*.jks
+android/app/*.keystore
