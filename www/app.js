@@ -20,6 +20,8 @@
   const historyEl = document.getElementById('history');
   const notifBtn = document.getElementById('btn-notif');
   const notifStatus = document.getElementById('notif-status');
+  const notifTestBtn = document.getElementById('btn-test-notif');
+  const notifTestStatus = document.getElementById('notif-test-status');
 
   let activeSlotKey = null;
 
@@ -364,6 +366,68 @@
       }
     } catch (_) { await updateNotifStatus(); }
   });
+
+  async function sendTestNotification() {
+    if (notifTestStatus) notifTestStatus.textContent = '';
+
+    if (isNativeApp()) {
+      const LN = getLocalNotifications();
+      if (!LN) {
+        if (notifTestStatus) notifTestStatus.textContent = 'Notifications are not available in this app build.';
+        return;
+      }
+      try {
+        let perm = await LN.checkPermissions();
+        let granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
+        if (!granted) {
+          perm = await LN.requestPermissions();
+          granted = perm && (perm.display === 'granted' || perm.receive === 'granted');
+        }
+        if (!granted) {
+          if (notifTestStatus) notifTestStatus.textContent = 'Permission not granted. Allow notifications in Android settings, then try again.';
+          await updateNotifStatus();
+          return;
+        }
+        const id = Math.floor(Date.now() % 100000) + 2000;
+        await LN.schedule({
+          notifications: [{
+            id: id,
+            title: 'Headache Tracker test',
+            body: 'Notifications are working on this phone.',
+            schedule: { at: new Date(Date.now() + 1500), allowWhileIdle: true },
+            extra: { test: true }
+          }]
+        });
+        if (notifTestStatus) notifTestStatus.textContent = 'Test notification scheduled. It should appear in about 1–2 seconds.';
+        await updateNotifStatus();
+      } catch (e) {
+        if (notifTestStatus) notifTestStatus.textContent = 'Could not send test notification. Check notification permission/settings and try again.';
+      }
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      if (notifTestStatus) notifTestStatus.textContent = 'Notifications are not supported in this browser.';
+      return;
+    }
+    try {
+      let perm = Notification.permission;
+      if (perm !== 'granted') perm = await Notification.requestPermission();
+      await updateNotifStatus();
+      if (perm === 'granted') {
+        new Notification('Headache Tracker test', { body: 'Notifications are working in this browser.' });
+        if (notifTestStatus) notifTestStatus.textContent = 'Test notification sent.';
+      } else {
+        if (notifTestStatus) notifTestStatus.textContent = 'Permission not granted. Enable notifications to test.';
+      }
+    } catch (_) {
+      if (notifTestStatus) notifTestStatus.textContent = 'Could not send test notification.';
+    }
+  }
+
+  if (notifTestBtn) {
+    notifTestBtn.addEventListener('click', sendTestNotification);
+  }
 
   // Register service worker (web/PWA only)
   if (!isNativeApp() && 'serviceWorker' in navigator) {
